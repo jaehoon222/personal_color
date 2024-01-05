@@ -1,0 +1,151 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Upload</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color:pink;
+        }
+
+        #container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #video {
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 100%;
+            border: 1px solid #ccc;
+        }
+
+        #capture-btn {
+            display: block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #fff;
+            border: 1px solid #000;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+
+        #canvas {
+            display: none;
+        }
+
+        #photo {
+            width: 100%;
+            height: auto;
+            display: none;
+        }
+
+        @media screen and (max-width: 768px) {
+            /* 화면 너비가 768px 이하인 경우 */
+            #container {
+                padding: 20px;
+            }
+        }
+
+
+    </style>
+</head>
+<body>
+    <div id="container">
+        <video id="video" autoplay></video>
+        <button id="capture-btn">Capture Photo</button>
+    </div>
+
+
+
+    <canvas id="canvas"></canvas>
+    <img id="photo" alt="Captured Photo">
+
+    <script>
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        // 웹 카메라에 접근하여 비디오를 표시합니다.
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function(stream) {
+                var video = document.getElementById('video');
+                video.srcObject = stream;
+            })
+            .catch(function(error) {
+                console.error('Error accessing the camera.', error);
+            });
+
+        // 사진을 찍고 캔버스에 표시합니다.
+        document.getElementById('capture-btn').addEventListener('click', function() {
+            var video = document.getElementById('video');
+            var canvas = document.getElementById('canvas');
+            var photo = document.getElementById('photo');
+
+            // 캔버스에 현재 비디오 프레임을 그립니다.
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // 캔버스의 이미지 데이터를 데이터 URL로 변환하여 사진 요소에 표시합니다.
+            photo.src = canvas.toDataURL('image/png');
+
+            // 이미지 데이터를 서버에 업로드합니다.
+            var formData = new FormData();
+            formData.append('image', dataURLtoFile(photo.src, 'photo.png'));
+
+            fetch("{% url 'personalColor:picture' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken') // CSRF 토큰을 헤더에 포함합니다.
+                },
+                body: formData
+            }).then(function(response) {
+                return response.json(); // 서버에서 반환한 데이터를 JSON 형식으로 파싱합니다.
+            })
+            .then(function(data) {
+                var color = data.color;
+                var url = "/result?color=" + color;
+                // 페이지 리디렉션
+                window.location.href = url;
+
+            })
+            .catch(function(error) {
+                console.error('Error uploading photo.', error);
+            });
+
+            console.log(color)
+        });
+
+        // 데이터 URL을 파일로 변환합니다.
+        function dataURLtoFile(dataURL, filename) {
+            var arr = dataURL.split(',');
+            var mime = arr[0].match(/:(.*?);/)[1];
+            var bstr = atob(arr[1]);
+            var n = bstr.length;
+            var u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new File([u8arr], filename, { type: mime });
+        }
+    </script>
+</body>
+</html>
